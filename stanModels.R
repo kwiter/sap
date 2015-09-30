@@ -10,24 +10,33 @@ writeModel <- function(model = linearReg){
 }
 
 modelNames()
-writeModel(robustReg)
+writeModel(linearReg) #writes to model.stan
+
+###
+##  Stan models listed below
+###
 
 linearReg <- '
-
-//linear regression
 data { 
+
   int<lower=0> N;        // number of data items
   int<lower=0> K;        // number of predictors
-  vector[N,K] x;         // predictor matrix
+  matrix[N,K] x;         // predictor matrix
   vector[N] y;           // outcome vector
+
 }
 parameters {
+
   real alpha;           // intercept
   vector[K] beta;       // coefficients for predictors
-  real<lower=0> sigma;  //error scale
+  real<lower=0> sigma;  // error scale
+
 }
 model {
-  y ~ normal(alpha + beta * x, sigma); //likelihood
+
+  for (n in 1:N)  
+    y ~ normal(alpha + beta * x[n], sigma);
+
 }
 '
 
@@ -37,17 +46,18 @@ robustReg <- '
 data { 
   int<lower=0> N;        // number of data items
   int<lower=0> K;        // number of predictors
-  vector[N,K] x;         // predictor matrix
+  matrix[N,K] x;         // predictor matrix
   vector[N] y;           // outcome vector
   real<lower=0> nu;      // degress of freedom for student T
 }
 parameters {
   real alpha;           // intercept
   vector[K] beta;       // coefficients for predictors
-  real<lower=0> sigma;  //error scale
+  real<lower=0> sigma;  // error scale
 }
 model {
-  y ~ student_t(nu,alpha + beta * x, sigma); //likelihood
+  for (n in 1:N)
+    y[n] ~ student_t(nu,alpha + beta * x[n], sigma); // likelihood
 }
 '
 
@@ -63,10 +73,10 @@ data {
 parameters {
   real alpha;           // intercept
   vector[K] beta;       // coefficients for predictors
-  real<lower=0> sigma;  //error scale
+  real<lower=0> sigma;  // error scale
 }
 model {
-  y ~ bernoulli_logit(alpha + beta * x); //likelihood
+  y ~ bernoulli_logit(alpha + beta * x); // likelihood
 }
 '
 
@@ -82,10 +92,10 @@ data {
 parameters {
   real alpha;           // intercept
   vector[K] beta;       // coefficients for predictors
-  real<lower=0> sigma;  //error scale
+  real<lower=0> sigma;  // error scale
 }
 model {
-  y ~ bernoulli(Phi(alpha + beta * x)); //likelihood faster version y ~ bernoulli(Phi_approx(alpha + beta * x));
+  y ~ bernoulli(Phi(alpha + beta * x)); // likelihood faster version y ~ bernoulli(Phi_approx(alpha + beta * x));
 }
 '
 
@@ -94,7 +104,7 @@ multiLogit <- '
 data {
   int<lower=2> K;      // possible outcomes
   int<lower=0> N;      // data items
-  int<lower=1> D;      //number of predictors
+  int<lower=1> D;      // number of predictors
   int<lower=1,upper=K> y[N];
   vector[D] x[N];
 }
@@ -122,7 +132,7 @@ OrderedLogistic <- '
 data {
   int<lower=2> K;      // possible outcomes
   int<lower=0> N;      // data items
-  int<lower=1> D;      //number of predictors
+  int<lower=1> D;      // number of predictors
   int<lower=1,upper=K> y[N];
   row_vector[D] x[N];
 }
@@ -142,7 +152,7 @@ OrderedProbit<- '
 data {
   int<lower=2> K;      // possible outcomes
   int<lower=0> N;      // data items
-  int<lower=1> D;      //number of predictors
+  int<lower=1> D;      // number of predictors
   int<lower=1,upper=K> y[N];
   row_vector[D] x[N];
 }
