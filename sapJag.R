@@ -232,3 +232,278 @@ tmp$beta
 plot(tmp$beta)
 
 plot(tmp$sigma)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+## multilevel hockey stick model
+## 
+hockeyStick <- '
+model{
+  for (i in 1:n){
+    y[i] ~ dnorm(y.hat[i], tau.y[stid[i]])
+    y.hat[i] <- beta0[stid[i]]+(beta1[stid[i]]-delta[stid[i]]*step(x[i]-phi[stid[i]]))*(x[i]-phi[stid[i]])
+  }
+  for (j in 1:n.st){
+    beta0[j] ~ dnorm(mu0, tau[1])
+    beta1[j] ~ dnorm(mu1, tau[2])
+    delta[j] ~ dnorm(mu2, tau[3])
+    phi[j] ~ dnorm(mu3,tau[4])T(L[j],U[j])
+    tau.y[j] <- pow(sigma.y[j], -2)
+    sigma.y[j] ~ dunif(0, 10)
+  } 
+  mu0 ~ dnorm(0, 0.0001)
+  mu1 ~ dnorm(0, 0.0001)
+  mu2 ~ dnorm(0, 0.0001)
+  mu3 ~ dnorm(0, 0.0001)
+  
+  for (k in 1:4){
+    tau[k] <- pow(sigma[k], -2)    
+    sigma[k] ~ dunif(0, 100)
+  }
+}
+'
+
+x = seq(1,30,by=1) - 15.5
+n = len(x)
+nst = 4
+stid = rep(1:4, each = n)
+b0 = 10; b1 = .5; de = 10; ph = 15.5; sig = 2
+y = rep(0,nst*n)
+y[1:n]              = c(b0 + b1*x[1:15],b0 + (b1+de)*x[16:30]) + 10
+y[(n+1):(2*n)]      = c(b0 + b1*x[1:15],b0 + (b1+de)*x[16:30]) - 10
+y[((2*n)+1):(3*n)]  = c(b0 + b1*x[1:15],b0 + (b1+de)*x[16:30]) + 20
+y[((3*n)+1):(4*n)]  = c(b0 + b1*x[1:15],b0 + (b1+de)*x[16:30]) - 20
+y = rnorm(len(y),y,sig ) 
+x = rep(x,4)
+L <- tapply(x, stid, min)
+U <- tapply(x, stid, max)
+plot(x,y)
+
+#bugs.dat <- list(n=n, nst=n.st, y=y, x=x, stid=stid,              
+#                 minYr=min(L), maxYr=max(U))
+
+dat <- list(
+  n = len(y),
+  n.st = nst,
+  y = y,
+  stid = stid,
+  x =  x,
+  L = L,
+  U = U
+)
+
+parameters <- c("y.hat","beta0","beta1","delta", "phi", "mu0", 
+                "mu1","mu2","mu3","sigma", "sigma.y")
+
+library(rjags)
+jags <- jags.model(textConnection(hockeyStick),
+                   data =dat,
+                   n.chains = 2,
+                   n.adapt = 100
+                   )
+
+update(jags, 1000)
+
+tmp <- jags.samples(jags,
+                    parameters,
+                    1000)
+summary(tmp)
+tmp$phi
+
+plot(x,y,type='p')
+points(x,apply(tmp$y,1,mean),col=4,pch=20)
+for(i in 1:len(x)){
+  lines(c(x[i],x[i]),c(apply(tmp$y,1,quantile,.975)[i],apply(tmp$y,1,quantile,.025)[i]),col=3,lty=1)
+}
+
+
+
+
+
+## multilevel hockey stick model
+## 
+hockeyStick <- '
+model{
+  for (i in 1:n){
+    y[i] ~ dnorm(y.hat[i], tau.y[stid[i]])
+    y.hat[i] <- beta0[stid[i]]+(beta1[stid[i]]-delta[stid[i]]*step(x[i]-phi[stid[i]]))*(x[i]-phi[stid[i]])
+  }
+  for (j in 1:n.st){
+    beta0[j] ~ dnorm(mu0, tau[1])
+    beta1[j] ~ dnorm(mu1, tau[2])
+    delta[j] ~ dnorm(mu2, tau[3])
+    phi[j] ~ dnorm(mu3,tau[4])T(L[j],U[j])
+    tau.y[j] <- pow(sigma.y[j], -2)
+    sigma.y[j] ~ dunif(0, 10)
+  } 
+  mu0 ~ dnorm(0, 0.0001)
+  mu1 ~ dnorm(0, 0.0001)
+  mu2 ~ dnorm(0, 0.0001)
+  mu3 ~ dnorm(0, 0.0001)
+  
+  for (k in 1:4){
+    tau[k] <- pow(sigma[k], -2)    
+    sigma[k] ~ dunif(0, 100)
+  }
+}
+'
+
+quantReg <- 
+'
+model{
+ for(i in 1:n){
+   mu[i] <- alpha + beta*x[i]
+   w[i] ~ dexp(tau)
+   me[i] <- (1-2*p)/(p*(1-p))*w[i] + mu[i]
+   pe[i] <- (p*(1-p)*tau)/(2*w[i])
+   y[i] ~ dnorm(me[i],pe[i])
+ }
+
+ #priors for regression
+ alpha ~ dnorm(0,1E-6)
+ beta ~ dnorm(0,1E-6)
+
+ lsigma ~ dunif(-5,15)
+ sigma <- exp(lsigma/2)
+ tau <- pow(sigma,-2)
+}
+'
+
+dat <- list(
+  n = len(y),
+  y = y,
+  x =  x,
+  p = .95
+)
+
+parameters <- c("alpha","beta","mu")
+
+library(rjags)
+jags <- jags.model(textConnection(quantReg),
+                   data =dat,
+                   n.chains = 2,
+                   n.adapt = 100
+)
+
+update(jags, 1000)
+
+tmp <- jags.samples(jags,
+                    parameters,
+                    1000)
+summary(tmp)
+tmp$phi
+
+plot(x,y,type='p')
+points(x,apply(tmp$mu,1,mean),col=4,pch=20)
+for(i in 1:len(x)){
+  lines(c(x[i],x[i]),c(apply(tmp$mu,1,quantile,.975)[i],apply(tmp$mu,1,quantile,.025)[i]),col=3,lty=1)
+}
+
+
+
+
+x = seq(1,30,by=1) -15.5
+n = len(x)
+nst = 4
+stid = rep(1:4, each = n)
+b0 = 10; b1 = .5; de = 10; ph = 15.5; sig = 10
+y = rep(0,nst*n)
+y[1:n]              = c(b0 + b1*x[1:15],b0 + (b1+de)*x[16:30]) + 10
+y[(n+1):(2*n)]      = c(b0 + b1*x[1:15],b0 + (b1+de)*x[16:30]) - 10
+x = seq(1,30,by=1) -20.5
+y[((2*n)+1):(3*n)]  = c(b0 + (20*b1)*x[1:20],b0 + ((b1*20)-20)*x[21:30]) + 20
+y[((3*n)+1):(4*n)]  = c(b0 + (20*b1)*x[1:20],b0 + ((b1*20)-20)*x[21:30]) - 20
+y = rnorm(len(y),y,sig ) 
+x = c(rep(seq(1,30,by=1) -15.5,2),rep(seq(1,30,by=1) -20.5,2))
+plot(x,y)
+x = rep(seq(1,30,by=1),4)
+L <- tapply(x, stid, min)
+U <- tapply(x, stid, max)
+
+
+## multilevel hockey stick model
+## 
+stickQuant <- '
+model{
+  for (i in 1:n){
+    x.hat[i] <- x[i] - phi[stid[i]]
+    w[i] ~ dexp(tau.y[stid[i]])
+    me[i] <- (1-2*p)/(p*(1-p))*w[i] + y.hat[i]
+    pe[i] <- (p*(1-p)*tau.y[stid[i]])/(2*w[i])
+    y[i] ~ dnorm(me[i],pe[i])
+    y.hat[i] <- beta0[stid[i]]+(beta1[stid[i]]-delta[stid[i]]*step(x.hat[i]-phi[stid[i]]))*(x.hat[i]-phi[stid[i]])
+  }
+  for (j in 1:n.st){
+    beta0[j] ~ dnorm(mu0, tau[1])
+    beta1[j] ~ dnorm(mu1, tau[2])
+    delta[j] ~ dnorm(mu2, tau[3])
+    phi[j] ~ dnorm(mu3,tau[4])T(L[j],U[j])
+    tau.y[j] <- pow(sigma.y[j], -2)
+    sigma.y[j] ~ dunif(0, 10)
+  } 
+  mu0 ~ dnorm(0, 0.0001)
+  mu1 ~ dnorm(0, 0.0001)
+  mu2 ~ dnorm(0, 0.0001)
+  mu3 ~ dnorm(0, 0.0001)
+
+  for (k in 1:4){
+    tau[k] <- pow(sigma[k], -2)    
+    sigma[k] ~ dunif(0, 100)
+  }
+}
+'
+
+
+dat <- list(
+  n = len(y),
+  n.st = nst,
+  y = y,
+  stid = stid,
+  x =  rep(seq(1,30,by=1),4) ,
+  L = L,
+  U = U,
+  p = .25
+)
+
+parameters <- c("y.hat","beta0","beta1","delta", "phi", "mu0", 
+                "mu1","mu2","mu3","sigma", "sigma.y")
+
+library(rjags)
+jags <- jags.model(textConnection(stickQuant),
+                   data =dat,
+                   n.chains = 4,
+                   n.adapt = 1000
+)
+
+update(jags, 3000)
+
+tmp <- jags.samples(jags,
+                    parameters,
+                    3000)
+summary(tmp)
+tmp$phi
+x = rep(seq(1,30,by=1),4) 
+plot(x,y,type='p')
+points(x,apply(tmp$y,1,mean),col=4,pch=20)
+hi = apply(tmp$y,1,quantile,.975)
+lo = apply(tmp$y,1,quantile,.025)       
+for(i in 1:len(x)){
+  lines(c(x[i],x[i]),c(hi[i],lo[i]),col=3,lty=1)
+}
+
